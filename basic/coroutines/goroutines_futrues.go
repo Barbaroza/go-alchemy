@@ -1,6 +1,7 @@
 package coroutines
 
 import (
+	"fmt"
 	"log"
 	"time"
 )
@@ -15,7 +16,7 @@ const (
 )
 
 type Task interface {
-	evalFunc(...interface{}) (interface{}, error)
+	Eval(...interface{}) (interface{}, error)
 }
 type Future interface {
 	Get() (interface{}, error)
@@ -48,15 +49,19 @@ func (receiver *FutureTask) GetDuration(duration time.Duration) (interface{}, er
 
 func (receiver *FutureTask) asyncEval(task Task) {
 	go func() {
-		receiver.stateChan <- NEW
-		evalFunc, err := task.evalFunc()
+
+		evalFunc, err := (task).Eval()
 		receiver.retChan <- TaskRet{evalFunc, err}
 		receiver.stateChan <- COMPLETING
+		fmt.Println("async eval complete")
+
 	}()
 }
 
 func (receiver *FutureTask) Cancel() {
 	receiver.stateChan <- CANCELLED
+	fmt.Println("cancel")
+
 }
 
 type FutureTask struct {
@@ -72,8 +77,8 @@ type TaskRet struct {
 
 func NewFuture(task Task) Future {
 	futureTask := FutureTask{
-		make(chan State),
-		make(chan TaskRet),
+		make(chan State, 1),
+		make(chan TaskRet, 1),
 		NEW,
 	}
 	futureTask.asyncEval(task)
