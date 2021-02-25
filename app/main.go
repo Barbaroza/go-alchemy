@@ -1,7 +1,9 @@
 package main
 
-import "basic"
+import (
+	"basic/net/tcp"
+)
 
 func main() {
-	basic.PanicRecover()
+	tcp.ClientStart()
 }

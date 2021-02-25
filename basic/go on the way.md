@@ -2688,4 +2688,249 @@ var interfaceSlice []interface{} = dataSlice
 -   [goroutines_lazy_evaluator.go](coroutines/goroutines_lazy_evaluator.go)
 
 #### 14.9  实现 Futures 模式
+-   [goroutines_futrues.go](coroutines/goroutines_futrues.go)
+#### 14.10 复用
+##### 14.10.1 典型的客户端/服务器（C/S）模式
+-   [goroutines_cs_model.go](coroutines/goroutines_cs_model.go)
+##### 14.11 限制同时处理的请求数
+    使用带缓冲区的通道很容易实现这一点（参见 14.2.5），其缓冲区容量就是同时处理请求的最大数量。程序max_tasks.go虽然没有做什么有用的事但是却包含了这个技巧：超过MAXREQS的请求将不会被同时处理，因为当信号通道表示缓冲区已满时handle函数会阻塞且不再处理其他请求，直到某个请求从sem中被移除。sem就像一个信号量，这一专业术语用于在程序中表示特定条件的标志变量。
     
+    
+##### 14.12 链式协程
+-   [goroutines_chaining.go](coroutines/goroutines_chaining.go)
+
+##### 14.13 在多核心上并行计算
+
+-   [goroutines_multicores.go](coroutines/goroutines_multicores.go)
+
+##### 14.14 并行化大量数据的计算
+
+-   [goroutines_massive_parallel_data_process.go](coroutines/goroutines_massive_parallel_data_process.go)
+##### 14.15 漏桶算法 
+-   [goroutines_leaky_bucket.go](coroutines/goroutines_leaky_bucket.go)
+##### 14.16 对Go协程进行基准测试
+    
+    在此我们将其应用到一个用协程向通道写入整数再读出的实例中。这个函数将通过testing.Benchmark调用N次（例如：N = 1,000,000），BenchMarkResult有一个String()方法来输出其结果。N的值将由gotest来判断并取得一个足够大的数字，以获得合理的基准测试结果。当然同样的基准测试方法也适用于普通函数。
+    
+    如果你想排除指定部分的代码或者更具体的指定要测试的部分，可以使用testing.B.startTimer()和testing.B.stopTimer()来开始或结束计时器。基准测试只有在所有的测试通过后才能运行！
+    
+-   [function_benchmark_test.go](coroutines/testing/function_benchmark_test.go)
+
+##### 14.17 使用通道并发访问对象
+    
+    为了保护对象被并发访问修改，我们可以使用协程在后台顺序执行匿名函数来替代使用同步互斥锁。在下面的程序中我们有一个类型Person其中包含一个字段chF，这是一个用于存放匿名函数的通道。
+    
+    这个结构在构造函数NewPerson()中初始化的同时会启动一个后台协程backend()。backend()方法会在一个无限循环中执行chF中放置的所有函数，有效的将它们序列化从而提供了安全的并发访问。更改和读取salary的方法会通过将一个匿名函数写入chF通道中，然后让backend()按顺序执行以达到其目的。需注意的是Salary方法创建的闭包函数是如何将fChan通道包含在其中的。
+-   [goroutines_conc_modify.go](coroutines/goroutines_conc_modify.go)
+
+### 15.0 网络、模板与网页应用
+
+#### 15.1 tcp 服务器
+    
+    一个（web）服务器应用需要响应众多客户端的并发请求：Go 会为每一个客户端产生一个协程用来处理请求。我们需要使用 net 包中网络通信的功能。它包含了处理 TCP/IP 以及 UDP 协议、域名解析等方法。
+    
+    服务器端代码是一个单独的文件：
+    
+### 16.0 常见的陷阱与错误
+    永远不要使用形如 var p*a 声明变量，这会混淆指针声明和乘法运算（参考4.9小节）
+    永远不要在for循环自身中改变计数器变量（参考5.4小节）
+    永远不要在for-range循环中使用一个值去改变自身的值（参考5.4.4小节）
+    永远不要将goto和前置标签一起使用（参考5.6小节）
+    永远不要忘记在函数名（参考第6章）后加括号()，尤其调用一个对象的方法或者使用匿名函数启动一个协程时
+    永远不要使用new()一个map，一直使用make（参考第8章）
+    当为一个类型定义一个String()方法时，不要使用fmt.Print或者类似的代码（参考10.7小节）
+    永远不要忘记当终止缓存写入时，使用Flush函数（参考12.2.3小节）
+    永远不要忽略错误提示，忽略错误会导致程序崩溃（参考13.1小节）
+    不要使用全局变量或者共享内存，这会使并发执行的代码变得不安全（参考14.1小节）
+    println函数仅仅是用于调试的目的
+    最佳实践：对比以下使用方式：
+    
+    使用正确的方式初始化一个元素是切片的映射，例如map[type]slice（参考8.1.3小节）
+    一直使用逗号，ok或者checked形式作为类型断言（参考11.3小节）
+    使用一个工厂函数创建并初始化自己定义类型（参考10.2小节-18.4小节）
+    仅当一个结构体的方法想改变结构体时，使用结构体指针作为方法的接受者，否则使用一个结构体值类型
+    
+#### 16.1 误用短声明导致变量覆盖
+    
+```go
+    var flag = false
+    if true {
+        //错误
+        flag := ture
+    }
+
+
+    func shadow() (err error) {
+    	x, err := check1() // x是新创建变量，err是被赋值
+    	if err != nil {
+    		return // 正确返回err
+    	}
+    	if y, err := check2(x); err != nil { // y和if语句中err被创建
+    		return // if语句中的err覆盖外面的err，所以错误的返回nil！
+    	} else {
+    		fmt.Println(y)
+    	}
+    	return
+    }
+```
+
+#### 16.2 误用字符串
+    当需要对一个字符串进行频繁的操作时，谨记在go语言中字符串是不可变的（类似java和c#）。使用诸如a += b形式连接字符串效率低下，尤其在一个循环内部使用这种形式。这会导致大量的内存开销和拷贝。应该使用一个字符数组代替字符串，将字符串内容写入一个缓存中。 例如以下的代码示例：
+```go
+    var buffer bytes.Buffer
+    
+    buffer.WirteString(String(""))
+    return buffer.toString()
+```
+
+#### 16.3 发生错误时使用 defer 关闭一个文件
+ defer仅在函数返回时才会执行，在循环的结尾或其他一些有限范围的代码内不会执行。
+ 
+
+```go
+    for _,files := range files { 
+            if f, err = os.Open(file); err != nil {
+                return
+            }
+    // 这是错误的方式，当循环结束时文件没有关闭
+    defer f.Close()
+    // 对文件进行操作
+    f.Process(data)
+    }
+    
+    for _, file := range files {
+        if f, err = os.Open(file); err != nil {
+            return
+        }
+        // 对文件进行操作
+        f.Process(data)
+        // 关闭文件
+        f.Close()
+     }
+
+
+
+```
+
+#### 16.4 何时使用 new() 和 make()
+
+- 切片、映射和通道，使用make
+- 数组、结构体和所有的值类型，使用new 
+
+#### 16.5 不需要将一个指向切片的指针传递给函数
+    在第4.9小节，我们已经知道，切片实际是一个指向潜在数组的指针。我们常常需要把切片作为一个参数传递给函数是因为：实际就是传递一个指向变量的指针，在函数内可以改变这个变量，而不是传递数据的拷贝。
+    
+    因此应该这样做：
+    
+       func findBiggest( listOfNumbers []int ) int {}
+    而不是：
+    
+       func findBiggest( listOfNumbers *[]int ) int {}
+    当切片作为参数传递时，切记不要解引用切片。
+    
+    
+#### 16.6 使用指针指向接口类型
+    nexter是一个接口类型，并且定义了一个next()方法读取下一字节。函数nextFew将nexter接口作为参数并读取接下来的num个字节，并返回一个切片：这是正确做法。但是nextFew2使用一个指向nexter接口类型的指针作为参数传递给函数：当使用next()函数时，系统会给出一个编译错误：*n.next undefined (type nexter has no field or method next) （译者注：n.next未定义（*nexter类型没有next成员或next方法））
+```go
+    package main
+    import (
+        "fmt"
+    )
+    type nexter interface {
+        next() byte
+    }
+    func nextFew1(n nexter, num int) []byte {
+        var b []byte
+        for i:=0; i < num; i++ {
+            b[i] = n.next()
+        }
+        return b
+    }
+    func nextFew2(n *nexter, num int) []byte {
+        var b []byte
+        for i:=0; i < num; i++ {
+            b[i] = n.next() // 编译错误:n.next未定义（*nexter类型没有next成员或next方法）
+        }
+        return b
+    }
+    func main() {
+        fmt.Println("Hello World!")
+    }
+```
+
+    永远不要使用一个指针指向一个接口类型，因为它已经是一个指针。
+    
+#### 16.7 使用值类型时误用指针
+    将一个值类型作为一个参数传递给函数或者作为一个方法的接收者，似乎是对内存的滥用，因为值类型一直是传递拷贝。但是另一方面，值类型的内存是在栈上分配，内存分配快速且开销不大。如果你传递一个指针，而不是一个值类型，go编译器大多数情况下会认为需要创建一个对象，并将对象移动到堆上，所以会导致额外的内存分配：因此当使用指针代替值类型作为参数传递时，我们没有任何收获。
+
+
+#### 16.8 误用协程和通道
+
+    由于教学需要和对协程的工作原理有一个直观的了解，在第14章使用了一些简单的算法，举例说明了协程和通道的使用，例如生产者或者迭代器。在实际应用中，你不需要并发执行，或者你不需要关注协程和通道的开销，在大多数情况下，通过栈传递参数会更有效率。
+    
+    但是，如果你使用break、return或者panic去跳出一个循环，很有可能会导致内存溢出，因为协程正处理某些事情而被阻塞。在实际代码中，通常仅需写一个简单的过程式循环即可。当且仅当代码中并发执行非常重要，才使用协程和通道。
+    
+    
+#### 16.9 闭包和协程的使用
+```go
+    package main
+    
+    import (
+        "fmt"
+        "time"
+    )
+    
+    var values = [5]int{10, 11, 12, 13, 14}
+    
+    func main() {
+        // 版本A:
+        for ix := range values { // ix是索引值
+            func() {
+                fmt.Print(ix, " ")
+            }() // 调用闭包打印每个索引值
+        }
+        fmt.Println()
+        // 版本B: 和A版本类似，但是通过调用闭包作为一个协程
+        for ix := range values {
+            go func() {
+                fmt.Print(ix, " ")
+            }()
+        }
+        fmt.Println()
+        time.Sleep(5e9)
+        // 版本C: 正确的处理方式
+        for ix := range values {
+            go func(ix interface{}) {
+                fmt.Print(ix, " ")
+            }(ix)
+        }
+        fmt.Println()
+        time.Sleep(5e9)
+        // 版本D: 输出值:
+        for ix := range values {
+            val := values[ix]
+            go func() {
+                fmt.Print(val, " ")
+            }()
+        }
+        time.Sleep(1e9)
+    }
+
+```
+
+    0 1 2 3 4
+    
+    4 4 4 4 4
+    
+    1 0 3 4 2
+    
+    10 11 12 13 14
+    
+    
+    版本A调用闭包5次打印每个索引值，版本B也做相同的事，但是通过协程调用每个闭包。按理说这将执行得更快，因为闭包是并发执行的。如果我们阻塞足够多的时间，让所有协程执行完毕，版本B的输出是：4 4 4 4 4。为什么会这样？在版本B的循环中，ix变量实际是一个单变量，表示每个数组元素的索引值。因为这些闭包都只绑定到一个变量，这是一个比较好的方式，当你运行这段代码时，你将看见每次循环都打印最后一个索引值4，而不是每个元素的索引值。因为协程可能在循环结束后还没有开始执行，而此时ix值是4。
+    
+    版本C的循环写法才是正确的：调用每个闭包时将ix作为参数传递给闭包。ix在每次循环时都被重新赋值，并将每个协程的ix放置在栈中，所以当协程最终被执行时，每个索引值对协程都是可用的。注意这里的输出可能是0 2 1 3 4或者0 3 1 2 4或者其他类似的序列，这主要取决于每个协程何时开始被执行。
+    
+    在版本D中，我们输出这个数组的值，为什么版本B不能而版本D可以呢？
+    
+    因为版本D中的变量声明是在循环体内部，所以在每次循环时，这些变量相互之间是不共享的，所以这些变量可以单独的被每个闭包使用。

@@ -34,3 +34,6 @@ func TestGoroutinesRecoverDemo(t *testing.T) {
 func TestLazyEvaluatorDemo(t *testing.T) {
 	coroutines.LazyEvaluatorDemo()
 }
+func TestMultiCoresDemo(t *testing.T) {
+	coroutines.MultiCoresDemo()
+}
