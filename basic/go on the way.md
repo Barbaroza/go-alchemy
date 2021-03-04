@@ -2934,3 +2934,162 @@ var interfaceSlice []interface{} = dataSlice
     在版本D中，我们输出这个数组的值，为什么版本B不能而版本D可以呢？
     
     因为版本D中的变量声明是在循环体内部，所以在每次循环时，这些变量相互之间是不共享的，所以这些变量可以单独的被每个闭包使用。
+    
+    
+#### 16.10 糟糕的错误处理
+    避免写出这样的代码：
+
+```go
+    ... err1 := api.Func1()
+    if err1 != nil {
+        fmt.Println("err: " + err.Error())
+        return
+    }
+    err2 := api.Func2()
+    if err2 != nil {
+    ...
+        return
+    }    
+
+```
+    首先，包括在一个初始化的if语句中对函数的调用。但即使代码中到处都是以if语句的形式通知错误（通过打印错误信息）。通过这种方式，很难分辨什么是正常的程序逻辑，什么是错误检测或错误通知。还需注意的是，大部分代码都是致力于错误的检测。通常解决此问题的好办法是尽可能以闭包的形式封装你的错误检测，例如下面的代码：
+
+```go
+
+    func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
+            err := func () error {
+                if req.Method != "GET" {
+                    return errors.New("expected GET")
+                }
+                if input := parseInput(req); input != "command" {
+                    return errors.New("malformed command")
+                }
+                // 可以在此进行其他的错误检测
+            } ()
+        
+                if err != nil {
+                    w.WriteHeader(400)
+                    io.WriteString(w, err)
+                    return
+                }
+                doSomething() ...
+```
+
+
+### 17.0 模式
+#### 17.1 逗号 ok 模式
+
+-   在函数返回时检测错误
+-   检测映射中是否存在一个键值
+-   检测一个接口类型变量varI是否包含了类型T
+-   检测一个通道ch是否关闭
+
+   [patterns_comma.go](patterns/patterns_comma.go)
+
+#### 17.2 defer 模式
+    使用 defer 可以确保资源不再需要时，都会被恰当地关闭或归还到“池子”中。更重要的一点是，它可以恢复 panic。
+    
+
+-   关闭一个文件流
+-   解锁一个被锁定的资源（mutex
+-   关闭一个通道（如有必要）
+-   从 panic 恢复
+-   停止一个计时器
+-   释放一个进程 p
+-   停止 CPU 性能分析并立即写入
+
+#### 17.3 可见性模式
+
+#### 17.4 运算符模式和接口
+
+    运算符是一元或二元函数，它返回一个新对象而不修改其参数，类似 C++ 中的 + 和 *，特殊的中缀运算符（+，-，* 等）可以被重载以支持类似数学运算的语法。但除了一些特殊情况，Go 语言并不支持运算符重载：为了克服该限制，运算符必须由函数来模拟。既然 Go 同时支持面向过程和面向对象编程，我们有两种选择：
+
+##### 17.4.1 函数作为运算符
+    运算符由包级别的函数实现，以操作一个或两个参数，并返回一个新对象。函数针对要操作的对象，在专门的包中实现。例如，假设要在包 matrix 中实现矩阵操作，就会包含 Add() 用于矩阵相加，Mult() 用于矩阵相乘，他们都会返回一个矩阵。这两个函数通过包名来调用，因此可以创造出如下形式的表达式：
+    
+    m := matrix.Add(m1, matrix.Mult(m2, m3))
+    
+    如果我们想在这些运算中区分不同类型的矩阵（稀疏或稠密），由于没有函数重载，我们不得不给函数起不同的名称，例如：
+    
+    func addSparseToDense (a *sparseMatrix, b *denseMatrix) *denseMatrix
+    func addDenseToDense (a *denseMatrix, b *denseMatrix) *denseMatrix
+    func addSparseToSparse (a *sparseMatrix, b *sparseMatrix) *sparseMatrix
+    
+    这可不怎么优雅，我们能选择的最佳方案是将它们隐藏起来，作为包的私有函数，并暴露单一的 Add() 函数作为公共 API。可以在嵌套的 switch 断言中测试类型，以便在任何支持的参数组合上执行操作：
+    
+    func Add(a Matrix, b Matrix) Matrix {
+    	switch a.(type) {
+    	case sparseMatrix:
+    		switch b.(type) {
+    		case sparseMatrix:
+    			return addSparseToSparse(a.(sparseMatrix), b.(sparseMatrix))
+    		case denseMatrix:
+    			return addSparseToDense(a.(sparseMatrix), b.(denseMatrix))
+    		…
+    		}
+    	default:
+    		// 不支持的参数
+    		…
+    	}
+    }
+##### 17.4.2 方法作为运算符
+
+    根据接收者类型不同，可以区分不同的方法。因此我们可以为每种类型简单地定义 Add 方法，来代替使用多个函数名称：
+    
+    func (a *sparseMatrix) Add(b Matrix) Matrix
+    func (a *denseMatrix) Add(b Matrix) Matrix
+    
+    每个方法都返回一个新对象，成为下一个方法调用的接收者，因此我们可以使用链式调用表达式：
+    
+    m := m1.Mult(m2).Add(m3)
+    比上一节面向过程的形式更简洁。
+    
+    正确的实现同样可以基于类型，通过 switch 类型断言在运行时确定：
+    
+    func (a *sparseMatrix) Add(b Matrix) Matrix {
+    	switch b.(type) {
+    	case sparseMatrix:
+    		return addSparseToSparse(a.(sparseMatrix), b.(sparseMatrix))
+    	case denseMatrix:
+    		return addSparseToDense(a.(sparseMatrix), b.(denseMatrix))
+    	…
+    	default:
+    		// 不支持的参数
+    		…
+    	}
+    }
+    
+##### 17.4.3 使用接口
+
+    当在不同类型上执行相同的方法时，创建一个通用化的接口以实现多态的想法，就会自然产生。
+    
+    例如定义一个代数 Algebraic 接口：
+    
+    type Algebraic interface {
+    	Add(b Algebraic) Algebraic
+    	Min(b Algebraic) Algebraic
+    	Mult(b Algebraic) Algebraic
+    	…
+    	Elements()
+    }
+    然后为我们的 matrix 类型定义 Add()，Min()，Mult()，……等方法。
+    
+    每种实现上述 Algebraic 接口类型的方法都可以链式调用。每个方法实现都应基于参数类型，使用 switch 类型断言来提供优化过的实现。另外，应该为仅依赖于接口的方法，指定一个默认处理分支：
+    
+    func (a *denseMatrix) Add(b Algebraic) Algebraic {
+    	switch b.(type) {
+    	case sparseMatrix:
+    		return addDenseToSparse(a, b.(sparseMatrix))
+    	…
+    	default:
+    		for x in range b.Elements() …
+    	}
+    }
+    如果一个通用的功能无法仅使用接口方法来实现，你可能正在处理两个不怎么相似的类型，此时应该放弃这种运算符模式。例如，如果 a 是一个集合而 b 是一个矩阵，那么编写 a.Add(b) 没有意义。就集合和矩阵运算而言，很难实现一个通用的 a.Add(b) 方法。遇到这种情况，把包拆分成两个，然后提供单独的 AlgebraicSet 和 AlgebraicMatrix 接口。
+    
+    
+### 18.0 出于性能考虑的实用代码片段
+
+
+
+
