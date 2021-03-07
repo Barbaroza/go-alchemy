@@ -12,7 +12,7 @@ func NewBitMap(maxNum int64) *BitMap {
 
 func (receiver *BitMap) IsExist(num int64) bool {
 	arrayIndex := num >> 3
-	bitIndex := num % 8
+	bitIndex := num & 7
 	return receiver.isExist(arrayIndex, bitIndex)
 }
 
@@ -22,7 +22,7 @@ func (receiver *BitMap) isExist(arrayIndex int64, bitIndex int64) bool {
 
 func (receiver *BitMap) Set(num int64) {
 	arrayIndex := num >> 3
-	bitIndex := num % 8
+	bitIndex := num & 7
 	if !receiver.isExist(arrayIndex, bitIndex) {
 		receiver.size++
 		receiver.bitMap[arrayIndex] |= 1 << bitIndex
@@ -31,7 +31,7 @@ func (receiver *BitMap) Set(num int64) {
 
 func (receiver *BitMap) Remove(num int64) {
 	arrayIndex := num >> 3
-	bitIndex := num % 8
+	bitIndex := num & 7
 	if receiver.isExist(arrayIndex, bitIndex) {
 		receiver.size--
 		receiver.bitMap[arrayIndex] &= ^(1 << bitIndex)
