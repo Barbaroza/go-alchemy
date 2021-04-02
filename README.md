@@ -1,4 +1,4 @@
 # go-alchemy
 
 ## go-basic
--   notes: [click here](./basic/go on the way.md)
+-   notes: [click here](basic/go on the way.md)
